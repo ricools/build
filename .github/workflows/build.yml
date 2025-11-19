@@ -1,4 +1,4 @@
-name: Build Armbian aml-s9xx-box with KVM
+name: Build Armbian AML S9XX Box with KVM
 
 on:
   workflow_dispatch:
@@ -8,82 +8,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Armbian build repo
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git curl wget qemu-user-static binfmt-support \
-            build-essential gcc g++ make python3 python3-pip bison flex libssl-dev \
-            bc kmod rsync tar gzip xz-utils debootstrap parted
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git gcc g++ make libc6-dev libncurses-dev \
+          qemu-user-static binfmt-support python3 python3-pip \
+          rsync bc uuid-runtime flex bison libssl-dev libelf-dev \
+          device-tree-compiler wget
 
-      ###############################################################
-      # ✨ Patch: Enable KVM virtualization for ARM64
-      ###############################################################
-      - name: Add Kernel Patch Enabling KVM
-        run: |
-          mkdir -p userpatches/kernel/meson64-current
-          cat << 'EOF' > userpatches/kernel/meson64-current/9999-enable-kvm.patch
-          diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
-          index 1234567..abcdef0 100644
-          --- a/arch/arm64/configs/defconfig
-          +++ b/arch/arm64/configs/defconfig
-          @@ -1,5 +1,20 @@
-           # Enable virtualization extensions
-          +CONFIG_KVM=y
-          +CONFIG_KVM_ARM_HOST=y
-          +CONFIG_KVM_ARM_V8=y
-          +CONFIG_VHOST=y
-          +CONFIG_VHOST_NET=y
-          +CONFIG_VHOST_VSOCK=y
-          +CONFIG_VHOST_CROSS_ENDIAN_LEGACY=y
-          +CONFIG_IRQ_BYPASS_MANAGER=y
-          +CONFIG_TUN=y
-          +CONFIG_BRIDGE=y
-          +CONFIG_NET_CORE=y
-          +CONFIG_NETFILTER=y
-          +CONFIG_NETFILTER_XTABLES=y
-          +CONFIG_NETFILTER_NETLINK=y
-          +CONFIG_NET=y
-          EOF
+    - name: Clone Armbian Build Framework
+      run: |
+        git clone --depth 1 https://github.com/armbian/build.git
 
-      ###############################################################
-      # 🚀 Build Armbian Image
-      ###############################################################
-      - name: Build Armbian Image
-        run: |
-          ./compile.sh \
-            BOARD=aml-s9xx-box \
-            BRANCH=current \
-            RELEASE=jammy \
-            BUILD_MINIMAL=no \
-            BUILD_DESKTOP=no \
-            KERNEL_ONLY=no \
-            KERNEL_CONFIGURE=no \
-            COMPRESS_OUTPUTIMAGE=sha,gpg,xz
+    - name: Prepare userpatches (Enable KVM)
+      run: |
+        mkdir -p build/userpatches/kernel/meson64-edge
+        mkdir -p build/userpatches/dtb/meson64
 
-      ###############################################################
-      # 📦 Upload build artifacts (v4)
-      ###############################################################
-      - name: Upload Image Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aml-s9xx-kvm
-          path: output/images/*
-          if-no-files-found: error
+        # Kernel Config Patch for KVM
+        cat << 'EOF' > build/userpatches/kernel/meson64-edge/kvm-enable.config
+CONFIG_KVM=y
+CONFIG_KVM_ARM_HOST=y
+CONFIG_VHOST=y
+CONFIG_VHOST_NET=y
+CONFIG_VHOST_VSOCK=y
+CONFIG_ARM64_VA_BITS_48=y
+EOF
 
-      ###############################################################
-      # 🏷 Release (latest artifact)
-      ###############################################################
-      - name: Release Image
-        uses: softprops/action-gh-release@v2
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        with:
-          tag_name: aml-s9xx-kvm-${{ github.run_id }}
-          name: "Armbian AML-S9XX-BOX KVM Build ${{ github.run_id }}"
-          files: output/images/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # DTB Patch to enable HYP mode / virtualization
+        cat << 'EOF' > build/userpatches/dtb/meson64/enable-hyp.patch
+/dts-v1/;
+
+/ {
+    hypervisor {
+        compatible = "linux,kvm";
+        status = "okay";
+    };
+};
+EOF
+
+    - name: Build AML S9XX Box Image with KVM Enabled
+      run: |
+        cd build
+        ./compile.sh image \
+            --board aml-s9xx-box \
+            --branch edge \
+            --release bookworm \
+            --no-desktop \
+            --kernel-config custom \
+            --variant minimal
+
+    - name: Upload Image Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: armbian-aml-s9xx-box-kvm
+        path: build/output/images/*.img
