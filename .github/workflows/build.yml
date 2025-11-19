@@ -21,9 +21,9 @@ jobs:
             bc kmod rsync tar gzip xz-utils debootstrap parted
 
       ###############################################################
-      # ✨ Tambahkan patch otomatis untuk enable KVM di Kernel
+      # ✨ Patch: Enable KVM virtualization for ARM64
       ###############################################################
-      - name: Apply Kernel KVM Patch
+      - name: Add Kernel Patch Enabling KVM
         run: |
           mkdir -p userpatches/kernel/meson64-current
           cat << 'EOF' > userpatches/kernel/meson64-current/9999-enable-kvm.patch
@@ -43,16 +43,15 @@ jobs:
           +CONFIG_IRQ_BYPASS_MANAGER=y
           +CONFIG_TUN=y
           +CONFIG_BRIDGE=y
+          +CONFIG_NET_CORE=y
           +CONFIG_NETFILTER=y
           +CONFIG_NETFILTER_XTABLES=y
           +CONFIG_NETFILTER_NETLINK=y
-          +CONFIG_NET_CORE=y
           +CONFIG_NET=y
-
           EOF
 
       ###############################################################
-      # 🚀 Jalankan Build Armbian
+      # 🚀 Build Armbian Image
       ###############################################################
       - name: Build Armbian Image
         run: |
@@ -67,22 +66,24 @@ jobs:
             COMPRESS_OUTPUTIMAGE=sha,gpg,xz
 
       ###############################################################
-      # 📦 Upload ke Artifact
+      # 📦 Upload build artifacts (v4)
       ###############################################################
-      - name: Upload image artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload Image Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: aml-s9xx-box-kvm
+          name: aml-s9xx-kvm
           path: output/images/*
+          if-no-files-found: error
 
       ###############################################################
-      # 🏷 Auto Release
+      # 🏷 Release (latest artifact)
       ###############################################################
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Release Image
+        uses: softprops/action-gh-release@v2
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           tag_name: aml-s9xx-kvm-${{ github.run_id }}
+          name: "Armbian AML-S9XX-BOX KVM Build ${{ github.run_id }}"
           files: output/images/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
