@@ -13,6 +13,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        set -e
         sudo apt-get update
         sudo apt-get install -y \
           git gcc g++ make libc6-dev libncurses-dev \
@@ -22,14 +23,20 @@ jobs:
 
     - name: Clone Armbian Build Framework
       run: |
+        set -e
+        # Clone the Armbian build system repository
         git clone --depth 1 https://github.com/armbian/build.git
 
-    - name: Prepare userpatches (Enable KVM)
+    - name: Prepare userpatches (Enable KVM in Kernel)
       run: |
-        mkdir -p build/userpatches/kernel/meson64-edge
-        mkdir -p build/userpatches/dtb/meson64
+        set -e
+        # The target kernel family for the aml-s9xx-box (edge branch) is meson64.
+        # We place the custom config fragment here.
+        KVM_PATCH_DIR="build/userpatches/kernel/meson64-edge"
+        mkdir -p "${KVM_PATCH_DIR}"
 
-        cat > build/userpatches/kernel/meson64-edge/kvm-enable.config <<EOF
+        # This config fragment enables KVM host support for ARM64 and required features.
+        cat > "${KVM_PATCH_DIR}/kvm-enable.config" <<EOF
 CONFIG_KVM=y
 CONFIG_KVM_ARM_HOST=y
 CONFIG_VHOST=y
@@ -37,21 +44,14 @@ CONFIG_VHOST_NET=y
 CONFIG_VHOST_VSOCK=y
 CONFIG_ARM64_VA_BITS_48=y
 EOF
-
-        cat > build/userpatches/dtb/meson64/enable-hyp.patch <<EOF
-/dts-v1/;
-
-/ {
-    hypervisor {
-        compatible = "linux,kvm";
-        status = "okay";
-    };
-};
-EOF
+        # NOTE: Removed the DTB patch because simple DTS fragments are prone to 
+        # compilation failure in the Armbian build system. Kernel config should be sufficient.
 
     - name: Build AML S9XX Box Image with KVM Enabled
       run: |
+        set -e
         cd build
+        # Use --kernel-config custom to ensure our kvm-enable.config is merged
         ./compile.sh image \
           --board aml-s9xx-box \
           --branch edge \
@@ -64,4 +64,5 @@ EOF
       uses: actions/upload-artifact@v4
       with:
         name: armbian-aml-s9xx-box-kvm
+        # The path must be relative to the workspace root, even though we built in 'build'
         path: build/output/images/*.img
