@@ -1,4 +1,4 @@
-name: Build Armbian
+name: Build Armbian aml-s9xx-box with KVM
 
 on:
   workflow_dispatch:
@@ -16,26 +16,73 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y qemu-user-static binfmt-support python3 python3-pip gcc g++ make \
-            git curl wget rsync tar bison flex build-essential parted debootstrap libssl-dev bc kmod
+          sudo apt install -y git curl wget qemu-user-static binfmt-support \
+            build-essential gcc g++ make python3 python3-pip bison flex libssl-dev \
+            bc kmod rsync tar gzip xz-utils debootstrap parted
 
-      - name: Build Armbian image
+      ###############################################################
+      # ✨ Tambahkan patch otomatis untuk enable KVM di Kernel
+      ###############################################################
+      - name: Apply Kernel KVM Patch
         run: |
-          ./compile.sh BOARD=b860h BRANCH=current RELEASE=jammy \
-            BUILD_MINIMAL=yes BUILD_DESKTOP=no KERNEL_ONLY=no KERNEL_CONFIGURE=no \
+          mkdir -p userpatches/kernel/meson64-current
+          cat << 'EOF' > userpatches/kernel/meson64-current/9999-enable-kvm.patch
+          diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+          index 1234567..abcdef0 100644
+          --- a/arch/arm64/configs/defconfig
+          +++ b/arch/arm64/configs/defconfig
+          @@ -1,5 +1,20 @@
+           # Enable virtualization extensions
+          +CONFIG_KVM=y
+          +CONFIG_KVM_ARM_HOST=y
+          +CONFIG_KVM_ARM_V8=y
+          +CONFIG_VHOST=y
+          +CONFIG_VHOST_NET=y
+          +CONFIG_VHOST_VSOCK=y
+          +CONFIG_VHOST_CROSS_ENDIAN_LEGACY=y
+          +CONFIG_IRQ_BYPASS_MANAGER=y
+          +CONFIG_TUN=y
+          +CONFIG_BRIDGE=y
+          +CONFIG_NETFILTER=y
+          +CONFIG_NETFILTER_XTABLES=y
+          +CONFIG_NETFILTER_NETLINK=y
+          +CONFIG_NET_CORE=y
+          +CONFIG_NET=y
+
+          EOF
+
+      ###############################################################
+      # 🚀 Jalankan Build Armbian
+      ###############################################################
+      - name: Build Armbian Image
+        run: |
+          ./compile.sh \
+            BOARD=aml-s9xx-box \
+            BRANCH=current \
+            RELEASE=jammy \
+            BUILD_MINIMAL=no \
+            BUILD_DESKTOP=no \
+            KERNEL_ONLY=no \
+            KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,gpg,xz
 
-      - name: Upload Armbian image artifact
+      ###############################################################
+      # 📦 Upload ke Artifact
+      ###############################################################
+      - name: Upload image artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: armbian-output
+          name: aml-s9xx-box-kvm
           path: output/images/*
 
+      ###############################################################
+      # 🏷 Auto Release
+      ###############################################################
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
-          tag_name: auto-build-${{ github.run_id }}
+          tag_name: aml-s9xx-kvm-${{ github.run_id }}
           files: output/images/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
