@@ -1,4 +1,4 @@
-name: Build Armbian AML S9XX Box with KVM
+name: Build Armbian Image
 
 on:
   workflow_dispatch:
@@ -8,61 +8,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
-        set -e
         sudo apt-get update
         sudo apt-get install -y \
-          git gcc g++ make libc6-dev libncurses-dev \
-          qemu-user-static binfmt-support python3 python3-pip \
-          rsync bc uuid-runtime flex bison libssl-dev libelf-dev \
-          device-tree-compiler wget
+          git gpg pv p7zip-full zip unzip xz-utils \
+          curl wget jq sed bc bison flex make gcc g++ \
+          qemu-user-static debootstrap python3 \
+          libssl-dev libncurses-dev liblz4-tool \
+          binfmt-support
 
-    - name: Clone Armbian Build Framework
+    - name: Clone Armbian Build
       run: |
-        set -e
-        # Clone the Armbian build system repository
-        git clone --depth 1 https://github.com/armbian/build.git
+        git clone --depth 1 https://github.com/armbian/build armbian
 
-    - name: Prepare userpatches (Enable KVM in Kernel)
+    - name: Build Armbian (direct compile)
       run: |
-        set -e
-        # The target kernel family for the aml-s9xx-box (edge branch) is meson64.
-        # We place the custom config fragment here.
-        KVM_PATCH_DIR="build/userpatches/kernel/meson64-edge"
-        mkdir -p "${KVM_PATCH_DIR}"
+        cd armbian
+        ./compile.sh BOARD=b860h \
+                      BRANCH=current \
+                      RELEASE=jammy \
+                      BUILD_MINIMAL=yes \
+                      BUILD_DESKTOP=no \
+                      KERNEL_ONLY=no \
+                      KERNEL_CONFIGURE=no \
+                      COMPRESS_OUTPUTIMAGE=sha,img,xz
 
-        # This config fragment enables KVM host support for ARM64 and required features.
-        cat > "${KVM_PATCH_DIR}/kvm-enable.config" <<EOF
-CONFIG_KVM=y
-CONFIG_KVM_ARM_HOST=y
-CONFIG_VHOST=y
-CONFIG_VHOST_NET=y
-CONFIG_VHOST_VSOCK=y
-CONFIG_ARM64_VA_BITS_48=y
-EOF
-        # NOTE: Removed the DTB patch because simple DTS fragments are prone to 
-        # compilation failure in the Armbian build system. Kernel config should be sufficient.
-
-    - name: Build AML S9XX Box Image with KVM Enabled
-      run: |
-        set -e
-        cd build
-        # Use --kernel-config custom to ensure our kvm-enable.config is merged
-        ./compile.sh image \
-          --board aml-s9xx-box \
-          --branch edge \
-          --release bookworm \
-          --no-desktop \
-          --kernel-config custom \
-          --variant minimal
-
-    - name: Upload Image Artifact
+    - name: Upload image
       uses: actions/upload-artifact@v4
       with:
-        name: armbian-aml-s9xx-box-kvm
-        # The path must be relative to the workspace root, even though we built in 'build'
-        path: build/output/images/*.img
+        name: armbian-flashable
+        path: armbian/output/images/*
