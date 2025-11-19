@@ -29,7 +29,6 @@ jobs:
         mkdir -p build/userpatches/kernel/meson64-edge
         mkdir -p build/userpatches/dtb/meson64
 
-        # Kernel Config Patch for KVM
         cat << 'EOF' > build/userpatches/kernel/meson64-edge/kvm-enable.config
 CONFIG_KVM=y
 CONFIG_KVM_ARM_HOST=y
@@ -39,7 +38,6 @@ CONFIG_VHOST_VSOCK=y
 CONFIG_ARM64_VA_BITS_48=y
 EOF
 
-        # DTB Patch to enable HYP mode / virtualization
         cat << 'EOF' > build/userpatches/dtb/meson64/enable-hyp.patch
 /dts-v1/;
 
@@ -55,12 +53,12 @@ EOF
       run: |
         cd build
         ./compile.sh image \
-            --board aml-s9xx-box \
-            --branch edge \
-            --release bookworm \
-            --no-desktop \
-            --kernel-config custom \
-            --variant minimal
+          --board aml-s9xx-box \
+          --branch edge \
+          --release bookworm \
+          --no-desktop \
+          --kernel-config custom \
+          --variant minimal
 
     - name: Upload Image Artifact
       uses: actions/upload-artifact@v4
