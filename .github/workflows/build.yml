@@ -29,7 +29,7 @@ jobs:
         mkdir -p build/userpatches/kernel/meson64-edge
         mkdir -p build/userpatches/dtb/meson64
 
-        cat << 'EOF' > build/userpatches/kernel/meson64-edge/kvm-enable.config
+        cat > build/userpatches/kernel/meson64-edge/kvm-enable.config <<EOF
 CONFIG_KVM=y
 CONFIG_KVM_ARM_HOST=y
 CONFIG_VHOST=y
@@ -38,7 +38,7 @@ CONFIG_VHOST_VSOCK=y
 CONFIG_ARM64_VA_BITS_48=y
 EOF
 
-        cat << 'EOF' > build/userpatches/dtb/meson64/enable-hyp.patch
+        cat > build/userpatches/dtb/meson64/enable-hyp.patch <<EOF
 /dts-v1/;
 
 / {
