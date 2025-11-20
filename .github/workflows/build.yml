@@ -28,7 +28,7 @@ jobs:
     - name: Build Armbian (direct compile)
       run: |
         cd armbian
-        ./compile.sh BOARD=b860h \
+        ./compile.sh BOARD=aml-s9xx-box \
                       BRANCH=current \
                       RELEASE=jammy \
                       BUILD_MINIMAL=yes \
