@@ -1,4 +1,4 @@
-name: Build Armbian Image
+name: Build Armbian AML S9XX BOX (Bookworm)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Install dependencies
@@ -21,24 +21,23 @@ jobs:
           libssl-dev libncurses-dev liblz4-tool \
           binfmt-support
 
-    - name: Clone Armbian Build
+    - name: Clone Armbian Build Framework
       run: |
         git clone --depth 1 https://github.com/armbian/build armbian
 
-    - name: Build Armbian (direct compile)
+    - name: Build Armbian Image
       run: |
         cd armbian
         ./compile.sh BOARD=aml-s9xx-box \
                       BRANCH=current \
-                      RELEASE=jammy \
+                      RELEASE=bookworm \
                       BUILD_MINIMAL=yes \
                       BUILD_DESKTOP=no \
-                      KERNEL_ONLY=no \
                       KERNEL_CONFIGURE=no \
                       COMPRESS_OUTPUTIMAGE=sha,img,xz
 
-    - name: Upload image
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: armbian-flashable
+        name: armbian-aml-s9xx-box-bookworm
         path: armbian/output/images/*
